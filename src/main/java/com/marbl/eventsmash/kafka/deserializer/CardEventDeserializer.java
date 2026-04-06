@@ -30,7 +30,7 @@ public class CardEventDeserializer implements KafkaRecordDeserializationSchema<C
         event.setCustomerId(textOrNull(after.get("customer_id")));
         event.setAccountId(textOrNull(after.get("account_id")));
         event.setCardType(textOrNull(after.get("card_type")));
-        event.setCardToken(textOrNull(after.get("card_token")));  // già mascherato da SMT
+        event.setCardToken(textOrNull(after.get("card_number")));
 
         // plafond_limit — null per debit e prepaid
         JsonNode plafondLimitNode = after.get("plafond_limit");

@@ -14,8 +14,6 @@ import static com.marbl.eventsmash.utils.JsonUtils.*;
 
 public class AccountEventDeserializer implements KafkaRecordDeserializationSchema<AccountEvent> {
 
-    private static final ObjectMapper mapper = new ObjectMapper();
-
     @Override
     public void deserialize(ConsumerRecord<byte[], byte[]> record, Collector<AccountEvent> out) throws IOException {
 

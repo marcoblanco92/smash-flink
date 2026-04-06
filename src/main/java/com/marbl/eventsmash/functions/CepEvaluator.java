@@ -172,8 +172,11 @@ public class CepEvaluator {
                                                     CustomerProfile p,
                                                     TransactionEvent txn) {
         if (txn == null || txn.getMerchantCategory() == null) return;
-
         String cat = txn.getMerchantCategory();
+        // Escludi categorie non rilevanti per variazioni di spesa reale
+        if (cat.equals("internal_transfer") || cat.equals("salary_income") ||
+                cat.equals("b2b_transfer")  || cat.equals("investment")) return;
+
         Map<String, Double>  amounts    = p.getMerchantCatAmounts30d();
         Map<String, Integer> counts     = p.getMerchantCatCounts30d();
         Map<String, Double>  avgAmounts = p.getMerchantCatAvgAmounts90d();
@@ -197,8 +200,11 @@ public class CepEvaluator {
                                                     CustomerProfile p,
                                                     TransactionEvent txn) {
         if (txn == null || txn.getMerchantCategory() == null) return;
-
         String cat = txn.getMerchantCategory();
+        // Escludi categorie non rilevanti per variazioni di spesa reale
+        if (cat.equals("internal_transfer") || cat.equals("salary_income") ||
+                cat.equals("b2b_transfer")  || cat.equals("investment")) return;
+
         Map<String, Double>  amounts    = p.getMerchantCatAmounts30d();
         Map<String, Integer> counts     = p.getMerchantCatCounts30d();
         Map<String, Double>  avgAmounts = p.getMerchantCatAvgAmounts90d();
@@ -222,8 +228,11 @@ public class CepEvaluator {
                                                     CustomerProfile p,
                                                     TransactionEvent txn) {
         if (txn == null || txn.getMerchantCategory() == null) return;
-
         String cat = txn.getMerchantCategory();
+        // Escludi categorie non rilevanti per variazioni di spesa reale
+        if (cat.equals("internal_transfer") || cat.equals("salary_income") ||
+                cat.equals("b2b_transfer")  || cat.equals("investment")) return;
+
         Map<String, Double>  amounts    = p.getMerchantCatAmounts30d();
         Map<String, Integer> counts     = p.getMerchantCatCounts30d();
         Map<String, Double>  avgAmounts = p.getMerchantCatAvgAmounts90d();

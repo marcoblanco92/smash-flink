@@ -6,7 +6,8 @@ import com.marbl.eventsmash.kafka.serializer.PreEnrichedEventSerializer;
 import com.marbl.eventsmash.model.baseline.CustomerBaseline;
 import com.marbl.eventsmash.model.enrich.PreEnrichedEvent;
 import com.marbl.eventsmash.model.source.*;
-import com.marbl.eventsmash.pipelines.*;
+import com.marbl.eventsmash.pipelines.CustomerPipeline;
+import com.marbl.eventsmash.pipelines.HotPathPipeline;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -22,127 +23,102 @@ import java.util.Set;
 public class SmashJobFlink {
 
     private static final Logger logger = LoggerFactory.getLogger(SmashJobFlink.class);
-
     private static final String TOPIC_ENRICHED = "events.enriched";
 
     public static void main(String[] args) throws Exception {
         logger.info("Starting Flink Job");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
         String bootstrapServers = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092");
 
-        // ── Creazione topic events.enriched (se non esiste) ──────────────────
         ensureTopicExists(bootstrapServers, TOPIC_ENRICHED, 12, 1);
 
-        // ── Sources — Hot Path ────────────────────────────────────────────────
+        // ── Sources — Hot Path ────────────────────────────────
         DataStream<TransactionEvent> transactionStream = KafkaSourceBuilder.<TransactionEvent>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("smash.smash_own.transactions")
-                .groupId("transaction-group")
-                .parallelism(12)
-                .deserializer(new TransactionEventDeserializer())
-                .build("TransactionEvent Source");
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.transactions")
+                .groupId("transaction-group").parallelism(12).fromLatest()
+                .deserializer(new TransactionEventDeserializer()).build("TransactionEvent Source");
 
         DataStream<AppEvent> appEventStream = KafkaSourceBuilder.<AppEvent>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("smash.smash_own.app_events")
-                .groupId("app-event-group")
-                .parallelism(12)
-                .deserializer(new AppEventDeserializer())
-                .build("AppEvent Source");
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.app_events")
+                .groupId("app-event-group").parallelism(12).fromLatest()
+                .deserializer(new AppEventDeserializer()).build("AppEvent Source");
 
         DataStream<MarketDataEvent> marketDataStream = KafkaSourceBuilder.<MarketDataEvent>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("smash.smash_own.market_data")
-                .groupId("market-data-group")
-                .parallelism(6)
-                .deserializer(new MarketDataEventDeserializer())
-                .build("MarketDataEvent Source");
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.market_data")
+                .groupId("market-data-group").parallelism(6)
+                .deserializer(new MarketDataEventDeserializer()).build("MarketDataEvent Source");
 
-        // ── Sources — Lateral State ───────────────────────────────────────────
-        DataStream<CrmProfileEvent> crmProfileStream = KafkaSourceBuilder.<CrmProfileEvent>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("smash.smash_own.crm_profiles")
-                .groupId("crm-profile-group")
-                .parallelism(12)
-                .deserializer(new CrmProfileEventDeserializer())
-                .build("CrmProfileEvent Source");
-
+        // ── Sources — Laterali ────────────────────────────────
         DataStream<AccountEvent> accountStream = KafkaSourceBuilder.<AccountEvent>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("smash.smash_own.accounts")
-                .groupId("account-group")
-                .parallelism(12)
-                .deserializer(new AccountEventDeserializer())
-                .build("AccountEvent Source");
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.accounts")
+                .groupId("account-group").parallelism(12)
+                .deserializer(new AccountEventDeserializer()).build("AccountEvent Source");
+
+        DataStream<CrmProfileEvent> crmProfileStream = KafkaSourceBuilder.<CrmProfileEvent>of(env)
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.crm_profiles")
+                .groupId("crm-profile-group").parallelism(12)
+                .deserializer(new CrmProfileEventDeserializer()).build("CrmProfileEvent Source");
 
         DataStream<LoanEvent> loanStream = KafkaSourceBuilder.<LoanEvent>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("smash.smash_own.loans")
-                .groupId("loan-group")
-                .parallelism(12)
-                .deserializer(new LoanEventDeserializer())
-                .build("LoanEvent Source");
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.loans")
+                .groupId("loan-group").parallelism(12)
+                .deserializer(new LoanEventDeserializer()).build("LoanEvent Source");
 
         DataStream<CardEvent> cardEventStream = KafkaSourceBuilder.<CardEvent>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("smash.smash_own.cards")
-                .groupId("card-event-group")
-                .parallelism(6)
-                .deserializer(new CardEventDeserializer())
-                .build("CardEvent Source");
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.cards")
+                .groupId("card-event-group").parallelism(6)
+                .deserializer(new CardEventDeserializer()).build("CardEvent Source");
 
-        // ── Sources — Baseline OLAP ───────────────────────────────────────────
+        DataStream<CustomerEvent> customerStream = KafkaSourceBuilder.<CustomerEvent>of(env)
+                .bootstrapServers(bootstrapServers).topic("smash.smash_own.customers")
+                .groupId("customer-group").parallelism(12)
+                .deserializer(new CustomerEventDeserializer()).build("CustomerEvent Source");
+
+        // ── Source — Baseline ─────────────────────────────────
         DataStream<CustomerBaseline> customerBaselineStream = KafkaSourceBuilder.<CustomerBaseline>of(env)
-                .bootstrapServers(bootstrapServers)
-                .topic("customer.baselines")
-                .groupId("baselines-group")
-                .parallelism(12)
-                .deserializer(new BaselineEventDeserializer())
-                .build("CustomerBaseline Source");
+                .bootstrapServers(bootstrapServers).topic("customer.baselines")
+                .groupId("baselines-group").parallelism(12)
+                .deserializer(new BaselineEventDeserializer()).build("CustomerBaseline Source");
 
-        // ── Pipelines — Lateral State ─────────────────────────────────────────
-        CrmProfilePipeline.build(crmProfileStream);
-        AccountUpdatePipeline.build(accountStream);
-        LoanUpdatePipeline.build(loanStream);
-        CardProfilePipeline.build(cardEventStream);
+        // ── CustomerPipeline — scrive SOLO su Hazelcast ───────
+        // Responsabilità unica: aggiornare la cache Hazelcast con ogni
+        // nuovo baseline pubblicato da smash-batch.
+        // BaselineEnrichmentFunction legge da Hazelcast → hot path
+        // riceve sempre la baseline più recente via AsyncIO.
         CustomerPipeline.build(customerBaselineStream);
 
-        // ── Pipeline — Hot Path ───────────────────────────────────────────────
+        // ── HotPathPipeline — non riceve più lo stream baseline ─
+        // La baseline entra nel profilo RocksDB via AsyncIO (Hazelcast),
+        // non più come stream laterale in processElement2.
         DataStream<PreEnrichedEvent> hotPath = HotPathPipeline.build(
                 transactionStream,
                 appEventStream,
-                marketDataStream
+                marketDataStream,
+                accountStream,
+                crmProfileStream,
+                loanStream,
+                cardEventStream,
+                customerStream
         );
 
-        // ── Sink — events.enriched ────────────────────────────────────────────
-        // Key: customerId → ordinamento per cliente sulla stessa partizione
-        // Value: JSON dell'EnrichedEvent completo
-        // Downstream: Layer 4 AI Agents (Classifier, Scorer, Reasoning, Explainer)
+        // ── Sink ──────────────────────────────────────────────
         KafkaSink<PreEnrichedEvent> enrichedSink = KafkaSink.<PreEnrichedEvent>builder()
                 .setBootstrapServers(bootstrapServers)
                 .setRecordSerializer(new PreEnrichedEventSerializer())
                 .build();
 
         hotPath.sinkTo(enrichedSink)
-                .name("Kafka Sink → " + TOPIC_ENRICHED)
+                .name(STR."Kafka Sink → \{TOPIC_ENRICHED}")
                 .setParallelism(12);
 
         env.execute("Smash Event Flink Job");
     }
 
-    /**
-     * Crea il topic Kafka se non esiste già.
-     * Evita di affidarsi all'auto-create di Kafka che usa 1 partizione di default.
-     */
-    private static void ensureTopicExists(String bootstrapServers,
-                                          String topicName,
-                                          int partitions,
-                                          int replicationFactor) {
+    private static void ensureTopicExists(String bootstrapServers, String topicName,
+                                          int partitions, int replicationFactor) {
         Properties props = new Properties();
         props.put("bootstrap.servers", bootstrapServers);
-
         try (AdminClient admin = AdminClient.create(props)) {
             Set<String> existing = admin.listTopics().names().get();
             if (!existing.contains(topicName)) {

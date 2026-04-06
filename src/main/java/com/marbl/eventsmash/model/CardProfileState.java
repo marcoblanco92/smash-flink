@@ -24,6 +24,7 @@ import java.io.Serializable;
 public class CardProfileState implements Serializable {
 
     // ── Identificatori ──
+    private String cardId;
     private String cardToken;
     private String customerId;
     private String cardType;     // credit, debit, prepaid
