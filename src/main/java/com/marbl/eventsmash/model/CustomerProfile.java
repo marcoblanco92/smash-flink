@@ -71,7 +71,7 @@ public class CustomerProfile implements Serializable {
     // ── Controparti ───────────────────────────────────────────
     private Set<String> knownCounterparts7d = new HashSet<>();
     private int distinctCounterparts7d = 0;
-    private Map<String, CounterpartProfile> counterpartProfiles = new HashMap<>();
+    private Map<String, CounterpartProfile> counterparts = new HashMap<>();
 
     // ── Cards ─────────────────────────────────────────────────
     private Map<String, CardProfileState> cardProfiles = new HashMap<>();
@@ -183,6 +183,11 @@ public class CustomerProfile implements Serializable {
 
         lastBaselineTs = b.getComputedAt();
         lastProfileUpdateTs = System.currentTimeMillis();
+
+        // Sync counterpartProfiles from baseline — replace-all, OLAP is authoritative
+        if (b.getCounterparts() != null && !b.getCounterparts().isEmpty()) {
+            this.counterparts = new HashMap<>(b.getCounterparts());
+        }
     }
 
 
@@ -214,6 +219,12 @@ public class CustomerProfile implements Serializable {
 
         if (isSignificant(absAmount, merchantCat)) {
             addSignificantEvent(new MiniEvent(eventTs, absAmount, merchantCat, channel));
+        }
+
+        if (merchantCat != null && !merchantCat.isEmpty() && amount < 0) {
+            double absAmt = Math.abs(amount);
+            merchantCatAmounts30d.merge(merchantCat, absAmt, Double::sum);
+            merchantCatCounts30d.merge(merchantCat, 1, Integer::sum);
         }
 
         lastEventTs = eventTs;

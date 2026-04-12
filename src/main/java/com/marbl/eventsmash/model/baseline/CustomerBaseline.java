@@ -1,10 +1,12 @@
 package com.marbl.eventsmash.model.baseline;
 
+import com.marbl.eventsmash.model.CounterpartProfile;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -68,4 +70,9 @@ public class CustomerBaseline implements Serializable {
 
     // ── Saldo snapshot ────────────────────────────────────────
     private double balance30dAgo;
+
+    // ── CounterpartProfiles ───────────────────────
+    // Map: counterpartToken → CounterpartProfile
+    // Popolato da smash-batch ogni 5 min — può essere null su baseline vecchie
+    private Map<String, CounterpartProfile> counterparts = new HashMap<>();
 }

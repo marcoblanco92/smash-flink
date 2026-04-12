@@ -38,6 +38,7 @@ public class TransactionEventDeserializer implements KafkaRecordDeserializationS
         event.setMerchantCategory(textOrNull(after.get("merchant_category")));
         event.setChannel(textOrNull(after.get("channel")));
         event.setCounterpartToken(textOrNull(after.get("counterpart")));
+        event.setDescription(textOrNull(after.get("description")));
 
         // card_id — null per wire/sepa_dd/instant
         event.setCardId(textOrNull(after.get("card_id")));

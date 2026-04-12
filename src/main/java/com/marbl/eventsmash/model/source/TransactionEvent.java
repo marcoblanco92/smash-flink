@@ -23,6 +23,7 @@ public class TransactionEvent implements Serializable {
     private String     merchantCategory;  // 25 categorie vocabolario
     private String     channel;           // wire, pos, atm, online, sepa_dd, instant
     private String     counterpartToken;  // mascherato da SMT Debezium
+    private String     description;
 
     // --- carta — null per wire/sepa_dd/instant ---
     private String cardId;                // UUID carta usata, null se non applicabile

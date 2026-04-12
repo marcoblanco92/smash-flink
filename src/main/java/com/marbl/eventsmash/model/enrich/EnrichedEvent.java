@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 @Data
 @AllArgsConstructor
@@ -59,5 +60,36 @@ public class EnrichedEvent implements Serializable {
                     ? cardEvent.getUpdatedAt()              : 0L;
             default            -> 0L;
         };
+    }
+
+    public String getDescription() {
+        if ("TRANSACTION".equals(eventType) && transaction != null) {
+            return transaction.getDescription();
+        }
+        // APP_EVENT e CARD_EVENT non hanno description testuale
+        return null;
+    }
+
+    public String getMerchantCategory() {
+        if ("TRANSACTION".equals(eventType) && transaction != null) {
+            return transaction.getMerchantCategory();
+        }
+        return null;
+    }
+
+    public String getTransactionId() {
+        return switch (eventType != null ? eventType : "") {
+            case "TRANSACTION" -> transaction != null ? transaction.getTransactionId() : null;
+            case "CARD"        -> cardEvent   != null ? cardEvent.getCardId()          : null;
+            case "APP"         -> appEvent    != null ? appEvent.getEventId()          : null;
+            default            -> null;
+        };
+    }
+
+    public BigDecimal getAmount() {
+        if ("TRANSACTION".equals(eventType) && transaction != null) {
+            return transaction.getAmount();
+        }
+        return null;
     }
 }

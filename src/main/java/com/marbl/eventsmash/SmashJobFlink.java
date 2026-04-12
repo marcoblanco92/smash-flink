@@ -1,6 +1,7 @@
 package com.marbl.eventsmash;
 
 import com.marbl.eventsmash.connectors.builder.source.KafkaSourceBuilder;
+import com.marbl.eventsmash.functions.AIEnrichmentFunction;
 import com.marbl.eventsmash.kafka.deserializer.*;
 import com.marbl.eventsmash.kafka.serializer.PreEnrichedEventSerializer;
 import com.marbl.eventsmash.model.baseline.CustomerBaseline;
@@ -8,7 +9,10 @@ import com.marbl.eventsmash.model.enrich.PreEnrichedEvent;
 import com.marbl.eventsmash.model.source.*;
 import com.marbl.eventsmash.pipelines.CustomerPipeline;
 import com.marbl.eventsmash.pipelines.HotPathPipeline;
+import org.apache.flink.configuration.ExternalizedCheckpointRetention;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
+import org.apache.flink.core.execution.CheckpointingMode;
+import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -30,6 +34,15 @@ public class SmashJobFlink {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         String bootstrapServers = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092");
+
+
+        // ── Checkpoint — exactly-once, ogni 30s, snapshot su volume montato ──
+        env.enableCheckpointing(30_000);
+        env.getCheckpointConfig().setCheckpointingConsistencyMode(CheckpointingMode.EXACTLY_ONCE);
+        env.getCheckpointConfig().setMinPauseBetweenCheckpoints(10_000);
+        env.getCheckpointConfig().setCheckpointTimeout(60_000);
+        env.getCheckpointConfig().setMaxConcurrentCheckpoints(1);
+        env.getCheckpointConfig().setExternalizedCheckpointRetention(ExternalizedCheckpointRetention.RETAIN_ON_CANCELLATION);
 
         ensureTopicExists(bootstrapServers, TOPIC_ENRICHED, 12, 1);
 
@@ -102,13 +115,28 @@ public class SmashJobFlink {
                 customerStream
         );
 
-        // ── Sink ──────────────────────────────────────────────
+        // ── Layer 4 — AI Enrichment (async, timeout 250ms) ───────
+        // hotPath produce PreEnrichedEvent dal Layer 3
+        // AIEnrichmentFunction chiama smash-ai via HTTP non bloccante
+        // Output: PreEnrichedEvent con intentClass + riskScore + opportunityScore popolati
+        DataStream<PreEnrichedEvent> aiEnrichedStream = AsyncDataStream.unorderedWait(
+                hotPath,                          // input: output del Layer 3
+                new AIEnrichmentFunction(),
+                250,
+                java.util.concurrent.TimeUnit.MILLISECONDS,
+                100
+        );
+
+        // ── Sink — events.enriched ────────────────────────────────
+        // Solo gli eventi AI-enriched escono su Kafka
+        // Il sink originale su hotPath è rimosso — non bypassa più il Layer 4
         KafkaSink<PreEnrichedEvent> enrichedSink = KafkaSink.<PreEnrichedEvent>builder()
                 .setBootstrapServers(bootstrapServers)
                 .setRecordSerializer(new PreEnrichedEventSerializer())
                 .build();
 
-        hotPath.sinkTo(enrichedSink)
+        aiEnrichedStream
+                .sinkTo(enrichedSink)
                 .name(STR."Kafka Sink → \{TOPIC_ENRICHED}")
                 .setParallelism(12);
 

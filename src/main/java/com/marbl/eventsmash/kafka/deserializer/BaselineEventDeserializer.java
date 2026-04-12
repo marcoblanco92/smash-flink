@@ -1,6 +1,7 @@
 package com.marbl.eventsmash.kafka.deserializer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.marbl.eventsmash.model.CounterpartProfile;
 import com.marbl.eventsmash.model.baseline.CustomerBaseline;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.connector.kafka.source.reader.deserializer.KafkaRecordDeserializationSchema;
@@ -77,6 +78,9 @@ public class BaselineEventDeserializer implements KafkaRecordDeserializationSche
         baseline.setEstimatedMonthlyIncome(node.path("estimatedMonthlyIncome").asDouble());
         baseline.setBalance30dAgo(node.path("balance30dAgo").asDouble());
 
+        // ── CounterpartProfiles ───────────────────────
+        baseline.setCounterparts(asCounterpartMap(node.get("counterparts")));
+
         logger.info(
                 "[BASELINE-DESERIALIZER] cust={} | computedAt={} | coldStart={} " +
                         "| w30Sum={} | w90Slope={} | w180Slope={} | w180Buckets={}",
@@ -119,5 +123,41 @@ public class BaselineEventDeserializer implements KafkaRecordDeserializationSche
                     map.put(e.getKey(), e.getValue().asInt()));
         }
         return map;
+    }
+
+    private Map<String, CounterpartProfile> asCounterpartMap(JsonNode mapNode) {
+        Map<String, CounterpartProfile> result = new HashMap<>();
+        if (mapNode == null || !mapNode.isObject()) return result;
+
+        mapNode.fields().forEachRemaining(entry -> {
+            JsonNode cp = entry.getValue();
+
+            CounterpartProfile profile = new CounterpartProfile();
+            profile.setCounterpartToken(cp.path("counterpartToken").asText(""));
+            profile.setDirection(cp.path("direction").asText("OUTBOUND"));
+            profile.setRecurring(cp.path("isRecurring").asBoolean(false));
+            profile.setSubscription(cp.path("isSubscription").asBoolean(false));
+            profile.setPaymentCount12m(cp.path("paymentCount12m").asInt(0));
+            profile.setSumAmount12m(cp.path("sumAmount12m").asDouble(0.0));
+            profile.setAvgAmount12m(cp.path("avgAmount12m").asDouble(0.0));
+            profile.setSumSquared12m(0.0);      // non serializzato — ricalcolato incrementalmente
+            profile.setLastAmount(cp.path("lastAmount").asDouble(0.0));
+            profile.setMinAmount12m(cp.path("minAmount12m").asDouble(0.0));
+            profile.setMaxAmount12m(cp.path("maxAmount12m").asDouble(0.0));
+            profile.setAvgIntervalDays(cp.path("avgIntervalDays").asDouble(0.0));
+            profile.setStdIntervalDays(0.0);    // non serializzato
+            profile.setExpectedNextDate(cp.path("expectedNextDate").asLong(0L));
+            profile.setDaysOverdue(0);          // calcolato runtime dal Layer 4
+            profile.setLastDate(cp.path("lastDate").asLong(0L));
+            profile.setFirstSeenDate(cp.path("firstSeenDate").asLong(0L));
+            profile.setMonthsActive(cp.path("monthsActive").asInt(0));
+            profile.setConsecutiveMonths(0);    // non serializzato
+            profile.setMerchantCategory(cp.path("merchantCategory").asText(""));
+            profile.setLastUpdateTs(cp.path("lastUpdateTs").asLong(0L));
+
+            result.put(entry.getKey(), profile);
+        });
+
+        return result;
     }
 }
